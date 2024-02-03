@@ -52,7 +52,9 @@ class Main(QMainWindow, Ui_MainWindow):
   def __init__(self: Ui_MainWindow, *args, **kwargs):
     QMainWindow.__init__(self, *args, **kwargs)
     self.setupUi(self)
-    self.reset()
+
+    self.solution = list()
+    self.capped = False
     self.tableWidget.setItemDelegate(TableDelegate())
     # delegate = AlignDelegate(self.tableWidget)
     # for i in range(9):
@@ -60,68 +62,66 @@ class Main(QMainWindow, Ui_MainWindow):
 
     self.btn_solve.clicked.connect(self.solve)
     self.btn_clear.clicked.connect(self.clear)
-  
-  def reset(self):
-    self.grid = list([0]*9 for _ in range(9))
-    self.rows = [0]*9
-    self.cols = [0]*9
-    self.blocks = [0]*9
-    self.spaces = []
-
-  def flip(self, i, j, bit):
-    self.rows[i] ^= bit
-    self.cols[j] ^= bit
-    self.blocks[i // 3 * 3 + j // 3] ^= bit
 
   def solve(self: Ui_MainWindow):
+    grid = list([0]*9 for _ in range(9))
     for i in range(9):
       for j in range(9):
         item = self.tableWidget.item(i, j)
         if item and item.text().isdigit():
-          val = int(item.text()) - 1
-          if val not in range(9):
-            print(f"invalid value: ({i}, {j}) {item.text()}")
-            return
-          self.grid[i][j] = val
-          self.flip(i, j, 1 << val)
-          if (self.rows[i] & self.cols[j] & self.blocks[i // 3 * 3 + j // 3] & (1 << val)) == 0:
-            print(f"invalid grid: ({i}, {j}) {item.text()}")
-            return
+          grid[i][j] = int(item.text())
           # redBrush = QBrush(QColor(255, 0, 0))
           # item.setForeground(redBrush)
-        else:
-          self.spaces.append((i, j))
 
-    self.fill()
+    self.dfs(grid, 0, 0)
 
     for i in range(9):
       for j in range(9):
-        newItem = QTableWidgetItem(str(self.grid[i][j] + 1))
+        newItem = QTableWidgetItem(str(self.solution[0][i][j]))
         self.tableWidget.setItem(i, j, newItem)
 
-  def fill(self):
-    valid = False
-    def dfs(pos):
-      nonlocal valid
-      if pos == len(self.spaces):
-        valid = True
+    self.solution = []
+    self.capped = False
+
+  def dfs(self, grid, i, j):
+    if self.capped:
+      return
+    while grid[i][j] != 0:
+      if j < 8:
+        j += 1
+      elif i < 8 and j == 8:
+        i += 1
+        j = 0
+      elif i == 8 and j == 8:
+        self.solution.append([row[:] for row in grid])
+        if len(self.solution) > 49:
+          self.capped = True
         return
-      i, j = self.spaces[pos]
-      mask = ~(self.rows[i] | self.cols[j] | self.blocks[i // 3 * 3 + j // 3]) & 0x1ff
-      while mask:
-        low_bit = mask & -mask
-        self.flip(i, j, low_bit)
-        self.grid[i][j] = len(bin(low_bit)) - 3
-        dfs(pos + 1)
-        if valid:
-          return
-        self.flip(i, j, low_bit)
-        self.grid[i][j] = 0
-        mask &= mask - 1
-    dfs(0)
+    for x in range(1, 10):
+      if isValid(grid, i, j, x):
+        grid[i][j] = x
+        self.dfs(grid, i, j)
+        grid[i][j] = 0
+
+  # def dfs(self, grid, i, j):
+  #   while grid[i][j] != 0:
+  #     if j < 8:
+  #       j += 1
+  #     elif i < 8 and j == 8:
+  #       i += 1
+  #       j = 0
+  #     elif i == 8 and j == 8:
+  #       self.solution = grid
+  #       return True
+  #   for x in range(1, 10):
+  #     if isValid(grid, i, j, x):
+  #       grid[i][j] = x
+  #       if self.dfs(grid, i, j):
+  #         return True
+  #       grid[i][j] = 0
+  #   return False
 
   def clear(self: Ui_MainWindow):
-    self.reset()
     for i in range(9):
       for j in range(9):
         item = self.tableWidget.item(i, j)
